@@ -7,7 +7,7 @@ import (
 
 	client "github.com/cosmos/ibc-go/v5/modules/core/02-client"
 	clienttypes "github.com/cosmos/ibc-go/v5/modules/core/02-client/types"
-	ibctm "github.com/cosmos/ibc-go/v5/modules/light-clients/07-tendermint"
+	ibctmtypes "github.com/cosmos/ibc-go/v5/modules/light-clients/07-tendermint/types"
 	ibctesting "github.com/cosmos/ibc-go/v5/testing"
 )
 
@@ -38,14 +38,14 @@ func (suite *ClientTestSuite) TestNewClientUpdateProposalHandler() {
 				suite.Require().NoError(err)
 				substituteClientState := suite.chainA.GetClientState(substitutePath.EndpointA.ClientID)
 
-				tmClientState, ok := subjectClientState.(*ibctm.ClientState)
+				tmClientState, ok := subjectClientState.(*ibctmtypes.ClientState)
 				suite.Require().True(ok)
 				tmClientState.AllowUpdateAfterMisbehaviour = true
 				tmClientState.FrozenHeight = tmClientState.LatestHeight
 				suite.chainA.App.GetIBCKeeper().ClientKeeper.SetClientState(suite.chainA.GetContext(), subjectPath.EndpointA.ClientID, tmClientState)
 
 				// replicate changes to substitute (they must match)
-				tmClientState, ok = substituteClientState.(*ibctm.ClientState)
+				tmClientState, ok = substituteClientState.(*ibctmtypes.ClientState)
 				suite.Require().True(ok)
 				tmClientState.AllowUpdateAfterMisbehaviour = true
 				suite.chainA.App.GetIBCKeeper().ClientKeeper.SetClientState(suite.chainA.GetContext(), substitutePath.EndpointA.ClientID, tmClientState)

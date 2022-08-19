@@ -16,7 +16,7 @@ import (
 	clienttypes "github.com/cosmos/ibc-go/v5/modules/core/02-client/types"
 	"github.com/cosmos/ibc-go/v5/modules/core/03-connection/types"
 	commitmenttypes "github.com/cosmos/ibc-go/v5/modules/core/23-commitment/types"
-	ibctm "github.com/cosmos/ibc-go/v5/modules/light-clients/07-tendermint"
+	ibctmtypes "github.com/cosmos/ibc-go/v5/modules/light-clients/07-tendermint/types"
 	ibctesting "github.com/cosmos/ibc-go/v5/testing"
 	"github.com/cosmos/ibc-go/v5/testing/simapp"
 )
@@ -109,22 +109,22 @@ func (suite *MsgTestSuite) TestNewMsgConnectionOpenInit() {
 func (suite *MsgTestSuite) TestNewMsgConnectionOpenTry() {
 	prefix := commitmenttypes.NewMerklePrefix([]byte("storePrefixKey"))
 
-	clientState := ibctm.NewClientState(
-		chainID, ibctm.DefaultTrustLevel, ibctesting.TrustingPeriod, ibctesting.UnbondingPeriod, ibctesting.MaxClockDrift, clientHeight, commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath,
+	clientState := ibctmtypes.NewClientState(
+		chainID, ibctmtypes.DefaultTrustLevel, ibctesting.TrustingPeriod, ibctesting.UnbondingPeriod, ibctesting.MaxClockDrift, clientHeight, commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath, false, false,
 	)
 	any, err := clienttypes.PackClientState(clientState)
 	suite.Require().NoError(err)
 
 	// Pack consensus state into any to test unpacking error
-	consState := ibctm.NewConsensusState(
+	consState := ibctmtypes.NewConsensusState(
 		time.Now(), commitmenttypes.NewMerkleRoot([]byte("root")), []byte("nextValsHash"),
 	)
 	invalidAny := clienttypes.MustPackConsensusState(consState)
 	counterparty := types.NewCounterparty("connectiontotest", "clienttotest", prefix)
 
 	// invalidClientState fails validateBasic
-	invalidClient := ibctm.NewClientState(
-		chainID, ibctm.DefaultTrustLevel, ibctesting.TrustingPeriod, ibctesting.UnbondingPeriod, ibctesting.MaxClockDrift, clienttypes.ZeroHeight(), commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath,
+	invalidClient := ibctmtypes.NewClientState(
+		chainID, ibctmtypes.DefaultTrustLevel, ibctesting.TrustingPeriod, ibctesting.UnbondingPeriod, ibctesting.MaxClockDrift, clienttypes.ZeroHeight(), commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath, false, false,
 	)
 
 	testCases := []struct {
@@ -162,19 +162,19 @@ func (suite *MsgTestSuite) TestNewMsgConnectionOpenTry() {
 }
 
 func (suite *MsgTestSuite) TestNewMsgConnectionOpenAck() {
-	clientState := ibctm.NewClientState(
-		chainID, ibctm.DefaultTrustLevel, ibctesting.TrustingPeriod, ibctesting.UnbondingPeriod, ibctesting.MaxClockDrift, clientHeight, commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath,
+	clientState := ibctmtypes.NewClientState(
+		chainID, ibctmtypes.DefaultTrustLevel, ibctesting.TrustingPeriod, ibctesting.UnbondingPeriod, ibctesting.MaxClockDrift, clientHeight, commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath, false, false,
 	)
 
 	// Pack consensus state into any to test unpacking error
-	consState := ibctm.NewConsensusState(
+	consState := ibctmtypes.NewConsensusState(
 		time.Now(), commitmenttypes.NewMerkleRoot([]byte("root")), []byte("nextValsHash"),
 	)
 	invalidAny := clienttypes.MustPackConsensusState(consState)
 
 	// invalidClientState fails validateBasic
-	invalidClient := ibctm.NewClientState(
-		chainID, ibctm.DefaultTrustLevel, ibctesting.TrustingPeriod, ibctesting.UnbondingPeriod, ibctesting.MaxClockDrift, clienttypes.ZeroHeight(), commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath,
+	invalidClient := ibctmtypes.NewClientState(
+		chainID, ibctmtypes.DefaultTrustLevel, ibctesting.TrustingPeriod, ibctesting.UnbondingPeriod, ibctesting.MaxClockDrift, clienttypes.ZeroHeight(), commitmenttypes.GetSDKSpecs(), ibctesting.UpgradePath, false, false,
 	)
 	connectionID := "connection-0"
 

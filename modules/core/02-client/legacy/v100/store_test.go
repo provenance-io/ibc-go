@@ -10,7 +10,7 @@ import (
 	"github.com/cosmos/ibc-go/v5/modules/core/02-client/types"
 	host "github.com/cosmos/ibc-go/v5/modules/core/24-host"
 	"github.com/cosmos/ibc-go/v5/modules/core/exported"
-	ibctm "github.com/cosmos/ibc-go/v5/modules/light-clients/07-tendermint"
+	ibctmtypes "github.com/cosmos/ibc-go/v5/modules/light-clients/07-tendermint/types"
 	ibctesting "github.com/cosmos/ibc-go/v5/testing"
 )
 
@@ -71,6 +71,7 @@ func (suite *LegacyTestSuite) TestMigrateStoreSolomachine() {
 				Diversifier: clientState.ConsensusState.Diversifier,
 				Timestamp:   clientState.ConsensusState.Timestamp,
 			},
+			AllowUpdateAfterProposal: clientState.AllowUpdateAfterProposal,
 		}
 
 		// set client state
@@ -145,15 +146,15 @@ func (suite *LegacyTestSuite) TestMigrateStoreTendermint() {
 			ctx := path.EndpointA.Chain.GetContext()
 			clientStore := path.EndpointA.Chain.App.GetIBCKeeper().ClientKeeper.ClientStore(ctx, path.EndpointA.ClientID)
 
-			processedTime, ok := ibctm.GetProcessedTime(clientStore, pruneHeight)
+			processedTime, ok := ibctmtypes.GetProcessedTime(clientStore, pruneHeight)
 			suite.Require().True(ok)
 			suite.Require().NotNil(processedTime)
 
-			processedHeight, ok := ibctm.GetProcessedHeight(clientStore, pruneHeight)
+			processedHeight, ok := ibctmtypes.GetProcessedHeight(clientStore, pruneHeight)
 			suite.Require().True(ok)
 			suite.Require().NotNil(processedHeight)
 
-			expectedConsKey := ibctm.GetIterationKey(clientStore, pruneHeight)
+			expectedConsKey := ibctmtypes.GetIterationKey(clientStore, pruneHeight)
 			suite.Require().NotNil(expectedConsKey)
 		}
 		pruneHeightMap[path] = pruneHeights
@@ -173,8 +174,8 @@ func (suite *LegacyTestSuite) TestMigrateStoreTendermint() {
 		// remove processed height and iteration keys since these were missing from previous version of ibc module
 		clientStore := path.EndpointA.Chain.App.GetIBCKeeper().ClientKeeper.ClientStore(path.EndpointA.Chain.GetContext(), path.EndpointA.ClientID)
 		for _, height := range unexpiredHeights {
-			clientStore.Delete(ibctm.ProcessedHeightKey(height))
-			clientStore.Delete(ibctm.IterationKey(height))
+			clientStore.Delete(ibctmtypes.ProcessedHeightKey(height))
+			clientStore.Delete(ibctmtypes.IterationKey(height))
 		}
 
 		unexpiredHeightMap[path] = unexpiredHeights
@@ -197,15 +198,15 @@ func (suite *LegacyTestSuite) TestMigrateStoreTendermint() {
 			suite.Require().False(ok, i)
 			suite.Require().Nil(consState, i)
 
-			processedTime, ok := ibctm.GetProcessedTime(clientStore, pruneHeight)
+			processedTime, ok := ibctmtypes.GetProcessedTime(clientStore, pruneHeight)
 			suite.Require().False(ok, i)
 			suite.Require().Equal(uint64(0), processedTime, i)
 
-			processedHeight, ok := ibctm.GetProcessedHeight(clientStore, pruneHeight)
+			processedHeight, ok := ibctmtypes.GetProcessedHeight(clientStore, pruneHeight)
 			suite.Require().False(ok, i)
 			suite.Require().Nil(processedHeight, i)
 
-			expectedConsKey := ibctm.GetIterationKey(clientStore, pruneHeight)
+			expectedConsKey := ibctmtypes.GetIterationKey(clientStore, pruneHeight)
 			suite.Require().Nil(expectedConsKey, i)
 		}
 
@@ -215,15 +216,15 @@ func (suite *LegacyTestSuite) TestMigrateStoreTendermint() {
 			suite.Require().True(ok)
 			suite.Require().NotNil(consState)
 
-			processedTime, ok := ibctm.GetProcessedTime(clientStore, height)
+			processedTime, ok := ibctmtypes.GetProcessedTime(clientStore, height)
 			suite.Require().True(ok)
 			suite.Require().NotEqual(uint64(0), processedTime)
 
-			processedHeight, ok := ibctm.GetProcessedHeight(clientStore, height)
+			processedHeight, ok := ibctmtypes.GetProcessedHeight(clientStore, height)
 			suite.Require().True(ok)
 			suite.Require().Equal(types.GetSelfHeight(path.EndpointA.Chain.GetContext()), processedHeight)
 
-			consKey := ibctm.GetIterationKey(clientStore, height)
+			consKey := ibctmtypes.GetIterationKey(clientStore, height)
 			suite.Require().Equal(host.ConsensusStateKey(height), consKey)
 		}
 	}

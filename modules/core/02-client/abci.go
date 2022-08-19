@@ -4,10 +4,11 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/cosmos/ibc-go/v5/modules/core/02-client/keeper"
-	ibctm "github.com/cosmos/ibc-go/v5/modules/light-clients/07-tendermint"
+	"github.com/cosmos/ibc-go/v5/modules/core/exported"
+	ibctmtypes "github.com/cosmos/ibc-go/v5/modules/light-clients/07-tendermint/types"
 )
 
-// BeginBlocker is used to perform IBC client upgrades
+// BeginBlocker updates an existing localhost client with the latest block height.
 func BeginBlocker(ctx sdk.Context, k keeper.Keeper) {
 	plan, found := k.GetUpgradePlan(ctx)
 	if found {
@@ -19,7 +20,7 @@ func BeginBlocker(ctx sdk.Context, k keeper.Keeper) {
 		// within the trusting period of the last block time on this chain.
 		_, exists := k.GetUpgradedClient(ctx, plan.Height)
 		if exists && ctx.BlockHeight() == plan.Height-1 {
-			upgradedConsState := &ibctm.ConsensusState{
+			upgradedConsState := &ibctmtypes.ConsensusState{
 				Timestamp:          ctx.BlockTime(),
 				NextValidatorsHash: ctx.BlockHeader().NextValidatorsHash,
 			}
@@ -28,7 +29,16 @@ func BeginBlocker(ctx sdk.Context, k keeper.Keeper) {
 			// SetUpgradedConsensusState always returns nil, hence the blank here.
 			_ = k.SetUpgradedConsensusState(ctx, plan.Height, bz)
 
-			keeper.EmitUpgradeChainEvent(ctx, plan.Height)
 		}
+	}
+
+	_, found = k.GetClientState(ctx, exported.Localhost)
+	if !found {
+		return
+	}
+
+	// update the localhost client with the latest block height
+	if err := k.UpdateClient(ctx, exported.Localhost, nil); err != nil {
+		panic(err)
 	}
 }

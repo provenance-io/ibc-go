@@ -30,7 +30,6 @@ var (
 )
 
 // NewMsgCreateClient creates a new MsgCreateClient instance
-//
 //nolint:interfacer
 func NewMsgCreateClient(
 	clientState exported.ClientState, consensusState exported.ConsensusState, signer string,
@@ -64,6 +63,9 @@ func (msg MsgCreateClient) ValidateBasic() error {
 	}
 	if err := clientState.Validate(); err != nil {
 		return err
+	}
+	if clientState.ClientType() == exported.Localhost {
+		return sdkerrors.Wrap(ErrInvalidClient, "localhost client can only be created on chain initialization")
 	}
 	consensusState, err := UnpackConsensusState(msg.ConsensusState)
 	if err != nil {
@@ -100,18 +102,17 @@ func (msg MsgCreateClient) UnpackInterfaces(unpacker codectypes.AnyUnpacker) err
 }
 
 // NewMsgUpdateClient creates a new MsgUpdateClient instance
-//
 //nolint:interfacer
-func NewMsgUpdateClient(id string, clientMsg exported.ClientMessage, signer string) (*MsgUpdateClient, error) {
-	anyClientMsg, err := PackClientMessage(clientMsg)
+func NewMsgUpdateClient(id string, header exported.Header, signer string) (*MsgUpdateClient, error) {
+	anyHeader, err := PackHeader(header)
 	if err != nil {
 		return nil, err
 	}
 
 	return &MsgUpdateClient{
-		ClientId:      id,
-		ClientMessage: anyClientMsg,
-		Signer:        signer,
+		ClientId: id,
+		Header:   anyHeader,
+		Signer:   signer,
 	}, nil
 }
 
@@ -121,12 +122,15 @@ func (msg MsgUpdateClient) ValidateBasic() error {
 	if err != nil {
 		return sdkerrors.Wrapf(sdkerrors.ErrInvalidAddress, "string could not be parsed as address: %v", err)
 	}
-	clientMsg, err := UnpackClientMessage(msg.ClientMessage)
+	header, err := UnpackHeader(msg.Header)
 	if err != nil {
 		return err
 	}
-	if err := clientMsg.ValidateBasic(); err != nil {
+	if err := header.ValidateBasic(); err != nil {
 		return err
+	}
+	if msg.ClientId == exported.Localhost {
+		return sdkerrors.Wrap(ErrInvalidClient, "localhost client is only updated on ABCI BeginBlock")
 	}
 	return host.ClientIdentifierValidator(msg.ClientId)
 }
@@ -142,13 +146,12 @@ func (msg MsgUpdateClient) GetSigners() []sdk.AccAddress {
 
 // UnpackInterfaces implements UnpackInterfacesMessage.UnpackInterfaces
 func (msg MsgUpdateClient) UnpackInterfaces(unpacker codectypes.AnyUnpacker) error {
-	var clientMsg exported.ClientMessage
-	return unpacker.UnpackAny(msg.ClientMessage, &clientMsg)
+	var header exported.Header
+	return unpacker.UnpackAny(msg.Header, &header)
 }
 
 // NewMsgUpgradeClient creates a new MsgUpgradeClient instance
-//
-//nolint:interfacer
+// nolint: interfacer
 func NewMsgUpgradeClient(clientID string, clientState exported.ClientState, consState exported.ConsensusState,
 	proofUpgradeClient, proofUpgradeConsState []byte, signer string,
 ) (*MsgUpgradeClient, error) {
@@ -225,10 +228,9 @@ func (msg MsgUpgradeClient) UnpackInterfaces(unpacker codectypes.AnyUnpacker) er
 }
 
 // NewMsgSubmitMisbehaviour creates a new MsgSubmitMisbehaviour instance.
-//
 //nolint:interfacer
-func NewMsgSubmitMisbehaviour(clientID string, misbehaviour exported.ClientMessage, signer string) (*MsgSubmitMisbehaviour, error) {
-	anyMisbehaviour, err := PackClientMessage(misbehaviour)
+func NewMsgSubmitMisbehaviour(clientID string, misbehaviour exported.Misbehaviour, signer string) (*MsgSubmitMisbehaviour, error) {
+	anyMisbehaviour, err := PackMisbehaviour(misbehaviour)
 	if err != nil {
 		return nil, err
 	}
@@ -246,12 +248,19 @@ func (msg MsgSubmitMisbehaviour) ValidateBasic() error {
 	if err != nil {
 		return sdkerrors.Wrapf(sdkerrors.ErrInvalidAddress, "string could not be parsed as address: %v", err)
 	}
-	misbehaviour, err := UnpackClientMessage(msg.Misbehaviour)
+	misbehaviour, err := UnpackMisbehaviour(msg.Misbehaviour)
 	if err != nil {
 		return err
 	}
 	if err := misbehaviour.ValidateBasic(); err != nil {
 		return err
+	}
+	if misbehaviour.GetClientID() != msg.ClientId {
+		return sdkerrors.Wrapf(
+			ErrInvalidMisbehaviour,
+			"misbehaviour client-id doesn't match client-id from message (%s ≠ %s)",
+			misbehaviour.GetClientID(), msg.ClientId,
+		)
 	}
 
 	return host.ClientIdentifierValidator(msg.ClientId)
@@ -268,6 +277,6 @@ func (msg MsgSubmitMisbehaviour) GetSigners() []sdk.AccAddress {
 
 // UnpackInterfaces implements UnpackInterfacesMessage.UnpackInterfaces
 func (msg MsgSubmitMisbehaviour) UnpackInterfaces(unpacker codectypes.AnyUnpacker) error {
-	var misbehaviour exported.ClientMessage
+	var misbehaviour exported.Misbehaviour
 	return unpacker.UnpackAny(msg.Misbehaviour, &misbehaviour)
 }

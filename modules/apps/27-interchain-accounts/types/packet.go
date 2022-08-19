@@ -16,7 +16,7 @@ func (iapd InterchainAccountPacketData) ValidateBasic() error {
 		return sdkerrors.Wrap(ErrInvalidOutgoingData, "packet data type cannot be unspecified")
 	}
 
-	if len(iapd.Data) == 0 {
+	if iapd.Data == nil {
 		return sdkerrors.Wrap(ErrInvalidOutgoingData, "packet data cannot be empty")
 	}
 
