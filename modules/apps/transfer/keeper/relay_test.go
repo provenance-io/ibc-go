@@ -5,6 +5,7 @@ import (
 
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
 	"github.com/cosmos/ibc-go/v5/modules/apps/transfer/types"
 	clienttypes "github.com/cosmos/ibc-go/v5/modules/core/02-client/types"
@@ -103,6 +104,18 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				// Release channel capability
 				suite.chainA.GetSimApp().ScopedTransferKeeper.ReleaseCapability(suite.chainA.GetContext(), cap)
 				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+			}, true, false,
+		},
+		{
+			"send coin failed - send coin is disabled",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+
+				// Disable SendEnabled
+				params := suite.chainA.GetSimApp().BankKeeper.GetParams(suite.chainA.GetContext())
+				params.SendEnabled = append(params.SendEnabled, banktypes.NewSendEnabled(sdk.DefaultBondDenom, false))
+				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
 			}, true, false,
 		},
 	}
