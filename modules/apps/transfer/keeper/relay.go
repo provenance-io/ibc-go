@@ -91,18 +91,6 @@ func (k Keeper) SendTransfer(
 			return err
 		}
 	}
-	if !k.GetSendEnabled(ctx) {
-		return types.ErrSendDisabled
-	}
-
-	if k.bankKeeper.BlockedAddr(sender) {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to send funds", sender)
-	}
-
-	if err := k.bankKeeper.IsSendEnabledCoins(ctx, sdk.NewCoins(token)...); err != nil {
-		return err
-	}
-
 	sourceChannelEnd, found := k.channelKeeper.GetChannel(ctx, sourcePort, sourceChannel)
 	if !found {
 		return sdkerrors.Wrapf(channeltypes.ErrChannelNotFound, "port ID (%s) channel ID (%s)", sourcePort, sourceChannel)
