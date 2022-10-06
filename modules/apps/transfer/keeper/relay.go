@@ -16,6 +16,24 @@ import (
 	coretypes "github.com/cosmos/ibc-go/v5/modules/core/types"
 )
 
+// CheckRestrictionsHandler checks if the ibc transfer should happen.
+type CheckRestrictionsHandler func() (canTransfer bool, err error)
+
+func NewDefaultCheckRestrictionsHandler(ctx sdk.Context, k Keeper, sender sdk.AccAddress, token sdk.Coin) (bool, error) {
+	if !k.GetSendEnabled(ctx) {
+		return false, types.ErrSendDisabled
+	}
+
+	if k.bankKeeper.BlockedAddr(sender) {
+		return false, sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to send funds", sender)
+	}
+
+	if err := k.bankKeeper.IsSendEnabledCoins(ctx, sdk.NewCoins(token)...); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // SendTransfer handles transfer sending logic. There are 2 possible cases:
 //
 // 1. Sender chain is acting as the source zone. The coins are transferred
@@ -59,7 +77,20 @@ func (k Keeper) SendTransfer(
 	receiver string,
 	timeoutHeight clienttypes.Height,
 	timeoutTimestamp uint64,
+	checkRestrictionsHandler CheckRestrictionsHandler,
 ) error {
+	// if nil then apply default checks
+	if checkRestrictionsHandler != nil {
+		res, err := checkRestrictionsHandler()
+		if res == false {
+			return err
+		}
+	} else {
+		res, err := NewDefaultCheckRestrictionsHandler(ctx, k, sender, token)
+		if res == false {
+			return err
+		}
+	}
 	if !k.GetSendEnabled(ctx) {
 		return types.ErrSendDisabled
 	}
