@@ -19,15 +19,18 @@ import (
 // CheckRestrictionsHandler checks if the ibc transfer should happen.
 type CheckRestrictionsHandler func(ctx sdk.Context, k Keeper, sender sdk.AccAddress, token sdk.Coin) (canTransfer bool, err error)
 
-func NewDefaultCheckRestrictionsHandler(ctx sdk.Context, k Keeper, sender sdk.AccAddress, token sdk.Coin) (bool, error) {
+// DefaultCheckRestrictionsHandler if no custom CheckRestrictionsHandler is provided, this should be used.
+func DefaultCheckRestrictionsHandler(ctx sdk.Context, k Keeper, sender sdk.AccAddress, token sdk.Coin) (bool, error) {
+	// This is IBC modules sendEnabled flag
 	if !k.GetSendEnabled(ctx) {
 		return false, types.ErrSendDisabled
 	}
 
+	// Check if the address is blocked by the bank module
 	if k.BankKeeper.BlockedAddr(sender) {
 		return false, sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to send funds", sender)
 	}
-
+	// Check if the coin transfer is disabled by the bank module.
 	if err := k.BankKeeper.IsSendEnabledCoins(ctx, sdk.NewCoins(token)...); err != nil {
 		return false, err
 	}
@@ -77,6 +80,7 @@ func (k Keeper) SendTransfer(
 	receiver string,
 	timeoutHeight clienttypes.Height,
 	timeoutTimestamp uint64,
+	// check restrictions condition met for this address and coin.
 	checkRestrictionsHandler CheckRestrictionsHandler,
 ) error {
 	// if nil then apply default checks
@@ -86,7 +90,7 @@ func (k Keeper) SendTransfer(
 			return err
 		}
 	} else {
-		res, err := NewDefaultCheckRestrictionsHandler(ctx, k, sender, token)
+		res, err := DefaultCheckRestrictionsHandler(ctx, k, sender, token)
 		if res == false {
 			return err
 		}

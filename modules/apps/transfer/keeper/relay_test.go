@@ -120,7 +120,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
 			}, true, false, nil,
 		}, {
-			"send coin success, pass in custom checkRestrictionHandler(for marker) - send coin is disabled",
+			"send coin success,even though send coin is disabled, by passing in custom checkRestrictionHandler(for marker) ",
 			func() {
 				suite.coordinator.CreateTransferChannels(path)
 				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
@@ -133,11 +133,26 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				if !k.GetSendEnabled(ctx) {
 					return false, types.ErrSendDisabled
 				}
-
 				if k.BankKeeper.BlockedAddr(sender) {
 					return false, sdkerrors.ErrUnauthorized.Wrapf("%s is not allowed to send funds", sender)
 				}
+				return true, nil
+			},
+		},
+		{
+			"send coin failed, send coin is disabled, pass in customHandler that checks sendEnabled ",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
 
+				// Disable SendEnabled
+				params := suite.chainA.GetSimApp().BankKeeper.GetParams(suite.chainA.GetContext())
+				params.SendEnabled = append(params.SendEnabled, banktypes.NewSendEnabled(sdk.DefaultBondDenom, false))
+				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
+			}, true, false, func(ctx sdk.Context, k keeper.Keeper, sender sdk.AccAddress, token sdk.Coin) (canTransfer bool, err error) {
+				if err := k.BankKeeper.IsSendEnabledCoins(ctx, sdk.NewCoins(token)...); err != nil {
+					return false, err
+				}
 				return true, nil
 			},
 		},
