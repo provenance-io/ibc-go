@@ -120,7 +120,8 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				params.SendEnabled = append(params.SendEnabled, banktypes.NewSendEnabled(sdk.DefaultBondDenom, false))
 				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
 			}, true, false, nil,
-		}, {
+		},
+		{
 			"send coin success,even though send coin is disabled, by passing in custom checkRestrictionHandler(for restricted marker) ",
 			func() {
 				suite.coordinator.CreateTransferChannels(path)
