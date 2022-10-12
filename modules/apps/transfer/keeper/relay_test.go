@@ -121,7 +121,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
 			}, true, false, nil,
 		}, {
-			"send coin success,even though send coin is disabled, by passing in custom checkRestrictionHandler(for marker) ",
+			"send coin success,even though send coin is disabled, by passing in custom checkRestrictionHandler(for restricted marker) ",
 			func() {
 				suite.coordinator.CreateTransferChannels(path)
 				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
