@@ -86,12 +86,12 @@ func (k Keeper) SendTransfer(
 	// if nil then apply default checks
 	if checkRestrictionsHandler != nil {
 		res, err := checkRestrictionsHandler(ctx, k, sender, token)
-		if res == false {
+		if !res {
 			return err
 		}
 	} else {
 		res, err := DefaultCheckRestrictionsHandler(ctx, k, sender, token)
-		if res == false {
+		if !res {
 			return err
 		}
 	}
