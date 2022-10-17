@@ -16,6 +16,27 @@ import (
 	coretypes "github.com/cosmos/ibc-go/v5/modules/core/types"
 )
 
+// CheckRestrictionsHandler checks if the ibc transfer should happen.
+type CheckRestrictionsHandler func(ctx sdk.Context, k Keeper, sender sdk.AccAddress, token sdk.Coin) (canTransfer bool, err error)
+
+// DefaultCheckRestrictionsHandler if no custom CheckRestrictionsHandler is provided, this should be used.
+func DefaultCheckRestrictionsHandler(ctx sdk.Context, k Keeper, sender sdk.AccAddress, token sdk.Coin) (bool, error) {
+	// This is IBC modules sendEnabled flag
+	if !k.GetSendEnabled(ctx) {
+		return false, types.ErrSendDisabled
+	}
+
+	// Check if the address is blocked by the bank module
+	if k.BankKeeper.BlockedAddr(sender) {
+		return false, sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to send funds", sender)
+	}
+	// Check if the coin transfer is disabled by the bank module.
+	if err := k.BankKeeper.IsSendEnabledCoins(ctx, sdk.NewCoins(token)...); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // SendTransfer handles transfer sending logic. There are 2 possible cases:
 //
 // 1. Sender chain is acting as the source zone. The coins are transferred
@@ -59,19 +80,21 @@ func (k Keeper) SendTransfer(
 	receiver string,
 	timeoutHeight clienttypes.Height,
 	timeoutTimestamp uint64,
+	// check restrictions condition met for this address and coin.
+	checkRestrictionsHandler CheckRestrictionsHandler,
 ) error {
-	if !k.GetSendEnabled(ctx) {
-		return types.ErrSendDisabled
+	// if nil then apply default checks
+	if checkRestrictionsHandler != nil {
+		res, err := checkRestrictionsHandler(ctx, k, sender, token)
+		if !res {
+			return err
+		}
+	} else {
+		res, err := DefaultCheckRestrictionsHandler(ctx, k, sender, token)
+		if !res {
+			return err
+		}
 	}
-
-	if k.bankKeeper.BlockedAddr(sender) {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to send funds", sender)
-	}
-
-	if err := k.bankKeeper.IsSendEnabledCoins(ctx, sdk.NewCoins(token)...); err != nil {
-		return err
-	}
-
 	sourceChannelEnd, found := k.channelKeeper.GetChannel(ctx, sourcePort, sourceChannel)
 	if !found {
 		return sdkerrors.Wrapf(channeltypes.ErrChannelNotFound, "port ID (%s) channel ID (%s)", sourcePort, sourceChannel)
@@ -126,7 +149,7 @@ func (k Keeper) SendTransfer(
 		escrowAddress := types.GetEscrowAddress(sourcePort, sourceChannel)
 
 		// escrow source tokens. It fails if balance insufficient.
-		if err := k.bankKeeper.SendCoins(
+		if err := k.BankKeeper.SendCoins(
 			ctx, sender, escrowAddress, sdk.NewCoins(token),
 		); err != nil {
 			return err
@@ -136,13 +159,13 @@ func (k Keeper) SendTransfer(
 		labels = append(labels, telemetry.NewLabel(coretypes.LabelSource, "false"))
 
 		// transfer the coins to the module account and burn them
-		if err := k.bankKeeper.SendCoinsFromAccountToModule(
+		if err := k.BankKeeper.SendCoinsFromAccountToModule(
 			ctx, sender, types.ModuleName, sdk.NewCoins(token),
 		); err != nil {
 			return err
 		}
 
-		if err := k.bankKeeper.BurnCoins(
+		if err := k.BankKeeper.BurnCoins(
 			ctx, types.ModuleName, sdk.NewCoins(token),
 		); err != nil {
 			// NOTE: should not happen as the module account was
@@ -248,13 +271,13 @@ func (k Keeper) OnRecvPacket(ctx sdk.Context, packet channeltypes.Packet, data t
 		}
 		token := sdk.NewCoin(denom, transferAmount)
 
-		if k.bankKeeper.BlockedAddr(receiver) {
+		if k.BankKeeper.BlockedAddr(receiver) {
 			return sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", receiver)
 		}
 
 		// unescrow tokens
 		escrowAddress := types.GetEscrowAddress(packet.GetDestPort(), packet.GetDestChannel())
-		if err := k.bankKeeper.SendCoins(ctx, escrowAddress, receiver, sdk.NewCoins(token)); err != nil {
+		if err := k.BankKeeper.SendCoins(ctx, escrowAddress, receiver, sdk.NewCoins(token)); err != nil {
 			// NOTE: this error is only expected to occur given an unexpected bug or a malicious
 			// counterparty module. The bug may occur in bank or any part of the code that allows
 			// the escrow address to be drained. A malicious counterparty module could drain the
@@ -309,14 +332,14 @@ func (k Keeper) OnRecvPacket(ctx sdk.Context, packet channeltypes.Packet, data t
 	voucher := sdk.NewCoin(voucherDenom, transferAmount)
 
 	// mint new tokens if the source of the transfer is the same chain
-	if err := k.bankKeeper.MintCoins(
+	if err := k.BankKeeper.MintCoins(
 		ctx, types.ModuleName, sdk.NewCoins(voucher),
 	); err != nil {
 		return err
 	}
 
 	// send to receiver
-	if err := k.bankKeeper.SendCoinsFromModuleToAccount(
+	if err := k.BankKeeper.SendCoinsFromModuleToAccount(
 		ctx, types.ModuleName, receiver, sdk.NewCoins(voucher),
 	); err != nil {
 		return err
@@ -390,7 +413,7 @@ func (k Keeper) refundPacketToken(ctx sdk.Context, packet channeltypes.Packet, d
 	if types.SenderChainIsSource(packet.GetSourcePort(), packet.GetSourceChannel(), data.Denom) {
 		// unescrow tokens back to sender
 		escrowAddress := types.GetEscrowAddress(packet.GetSourcePort(), packet.GetSourceChannel())
-		if err := k.bankKeeper.SendCoins(ctx, escrowAddress, sender, sdk.NewCoins(token)); err != nil {
+		if err := k.BankKeeper.SendCoins(ctx, escrowAddress, sender, sdk.NewCoins(token)); err != nil {
 			// NOTE: this error is only expected to occur given an unexpected bug or a malicious
 			// counterparty module. The bug may occur in bank or any part of the code that allows
 			// the escrow address to be drained. A malicious counterparty module could drain the
@@ -402,13 +425,13 @@ func (k Keeper) refundPacketToken(ctx sdk.Context, packet channeltypes.Packet, d
 	}
 
 	// mint vouchers back to sender
-	if err := k.bankKeeper.MintCoins(
+	if err := k.BankKeeper.MintCoins(
 		ctx, types.ModuleName, sdk.NewCoins(token),
 	); err != nil {
 		return err
 	}
 
-	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, sender, sdk.NewCoins(token)); err != nil {
+	if err := k.BankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, sender, sdk.NewCoins(token)); err != nil {
 		panic(fmt.Sprintf("unable to send coins from module to account despite previously minting coins to module account: %v", err))
 	}
 

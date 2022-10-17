@@ -5,7 +5,10 @@ import (
 
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+
+	"github.com/cosmos/ibc-go/v5/modules/apps/transfer/keeper"
 
 	"github.com/cosmos/ibc-go/v5/modules/apps/transfer/types"
 	clienttypes "github.com/cosmos/ibc-go/v5/modules/core/02-client/types"
@@ -26,17 +29,18 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 	)
 
 	testCases := []struct {
-		msg            string
-		malleate       func()
-		sendFromSource bool
-		expPass        bool
+		msg                      string
+		malleate                 func()
+		sendFromSource           bool
+		expPass                  bool
+		checkRestrictionsHandler keeper.CheckRestrictionsHandler
 	}{
 		{
 			"successful transfer from source chain",
 			func() {
 				suite.coordinator.CreateTransferChannels(path)
 				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
-			}, true, true,
+			}, true, true, nil,
 		},
 		{
 			"successful transfer with coin from counterparty chain",
@@ -44,7 +48,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				// send coin from chainA back to chainB
 				suite.coordinator.CreateTransferChannels(path)
 				amount = types.GetTransferCoin(path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, sdk.DefaultBondDenom, sdk.NewInt(100))
-			}, false, true,
+			}, false, true, nil,
 		},
 		{
 			"source channel not found",
@@ -53,7 +57,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				suite.coordinator.CreateTransferChannels(path)
 				path.EndpointA.ChannelID = ibctesting.InvalidID
 				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
-			}, true, false,
+			}, true, false, nil,
 		},
 		{
 			"next seq send not found",
@@ -68,7 +72,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				)
 				suite.chainA.CreateChannelCapability(suite.chainA.GetSimApp().ScopedIBCMockKeeper, path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID)
 				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
-			}, true, false,
+			}, true, false, nil,
 		},
 		{
 			"transfer failed - sender account is blocked",
@@ -76,7 +80,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				suite.coordinator.CreateTransferChannels(path)
 				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
 				sender = suite.chainA.GetSimApp().AccountKeeper.GetModuleAddress(types.ModuleName)
-			}, true, false,
+			}, true, false, nil,
 		},
 		// createOutgoingPacket tests
 		// - source chain
@@ -85,7 +89,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 			func() {
 				suite.coordinator.CreateTransferChannels(path)
 				amount = sdk.NewCoin("randomdenom", sdk.NewInt(100))
-			}, true, false,
+			}, true, false, nil,
 		},
 		// - receiving chain
 		{
@@ -93,7 +97,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 			func() {
 				suite.coordinator.CreateTransferChannels(path)
 				amount = types.GetTransferCoin(path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, " randomdenom", sdk.NewInt(100))
-			}, false, false,
+			}, false, false, nil,
 		},
 		{
 			"channel capability not found",
@@ -104,7 +108,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				// Release channel capability
 				suite.chainA.GetSimApp().ScopedTransferKeeper.ReleaseCapability(suite.chainA.GetContext(), cap)
 				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
-			}, true, false,
+			}, true, false, nil,
 		},
 		{
 			"send coin failed - send coin is disabled",
@@ -116,7 +120,44 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 				params := suite.chainA.GetSimApp().BankKeeper.GetParams(suite.chainA.GetContext())
 				params.SendEnabled = append(params.SendEnabled, banktypes.NewSendEnabled(sdk.DefaultBondDenom, false))
 				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
-			}, true, false,
+			}, true, false, nil,
+		},
+		{
+			"send coin success,even though send coin is disabled, by passing in custom checkRestrictionHandler(for restricted marker) ",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+
+				// Disable SendEnabled
+				params := suite.chainA.GetSimApp().BankKeeper.GetParams(suite.chainA.GetContext())
+				params.SendEnabled = append(params.SendEnabled, banktypes.NewSendEnabled(sdk.DefaultBondDenom, false))
+				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
+			}, true, true, func(ctx sdk.Context, k keeper.Keeper, sender sdk.AccAddress, token sdk.Coin) (canTransfer bool, err error) {
+				if !k.GetSendEnabled(ctx) {
+					return false, types.ErrSendDisabled
+				}
+				if k.BankKeeper.BlockedAddr(sender) {
+					return false, sdkerrors.ErrUnauthorized.Wrapf("%s is not allowed to send funds", sender)
+				}
+				return true, nil
+			},
+		},
+		{
+			"send coin failed, send coin is disabled, pass in customHandler that checks sendEnabled ",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+
+				// Disable SendEnabled
+				params := suite.chainA.GetSimApp().BankKeeper.GetParams(suite.chainA.GetContext())
+				params.SendEnabled = append(params.SendEnabled, banktypes.NewSendEnabled(sdk.DefaultBondDenom, false))
+				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
+			}, true, false, func(ctx sdk.Context, k keeper.Keeper, sender sdk.AccAddress, token sdk.Coin) (canTransfer bool, err error) {
+				if err := k.BankKeeper.IsSendEnabledCoins(ctx, sdk.NewCoins(token)...); err != nil {
+					return false, err
+				}
+				return true, nil
+			},
 		},
 	}
 
@@ -155,7 +196,7 @@ func (suite *KeeperTestSuite) TestSendTransfer() {
 
 			err = suite.chainA.GetSimApp().TransferKeeper.SendTransfer(
 				suite.chainA.GetContext(), path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, amount,
-				sender, suite.chainB.SenderAccount.GetAddress().String(), suite.chainB.GetTimeoutHeight(), 0,
+				sender, suite.chainB.SenderAccount.GetAddress().String(), suite.chainB.GetTimeoutHeight(), 0, tc.checkRestrictionsHandler,
 			)
 
 			if tc.expPass {

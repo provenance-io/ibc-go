@@ -20,7 +20,7 @@ write a little note why.
 
 - [ ] Targeted PR against correct branch (see [CONTRIBUTING.md](https://github.com/cosmos/ibc-go/blob/master/CONTRIBUTING.md#pr-targeting))
 - [ ] Linked to Github issue with discussion and accepted design OR link to spec that describes this work.
-- [ ] Code follows the [module structure standards](https://github.com/cosmos/cosmos-sdk/blob/master/docs/building-modules/structure.md).
+- [ ] Code follows the [module structure standards](https://docs.cosmos.network/v0.46/building-modules/structure.html#structure).
 - [ ] Wrote unit and integration [tests](https://github.com/cosmos/ibc-go/blob/master/CONTRIBUTING.md#testing)
 - [ ] Updated relevant documentation (`docs/`) or specification (`x/<module>/spec/`)
 - [ ] Added relevant `godoc` [comments](https://blog.golang.org/godoc-documenting-go-code).
