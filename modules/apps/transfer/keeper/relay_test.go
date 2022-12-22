@@ -5,13 +5,195 @@ import (
 
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
+	"github.com/cosmos/ibc-go/v6/modules/apps/transfer/keeper"
 	"github.com/cosmos/ibc-go/v6/modules/apps/transfer/types"
 	clienttypes "github.com/cosmos/ibc-go/v6/modules/core/02-client/types"
 	channeltypes "github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"
+	host "github.com/cosmos/ibc-go/v6/modules/core/24-host"
 	ibctesting "github.com/cosmos/ibc-go/v6/testing"
 	"github.com/cosmos/ibc-go/v6/testing/simapp"
 )
+
+// test sending from chainA to chainB using both coin that orignate on
+// chainA and coin that orignate on chainB
+func (suite *KeeperTestSuite) TestSendTransferOriginal() {
+	var (
+		amount sdk.Coin
+		path   *ibctesting.Path
+		sender sdk.AccAddress
+		err    error
+	)
+
+	testCases := []struct {
+		msg                      string
+		malleate                 func()
+		sendFromSource           bool
+		expPass                  bool
+		checkRestrictionsHandler keeper.CheckRestrictionsHandler
+	}{
+		{
+			"successful transfer from source chain",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+			}, true, true, nil,
+		},
+		{
+			"successful transfer with coin from counterparty chain",
+			func() {
+				// send coin from chainA back to chainB
+				suite.coordinator.CreateTransferChannels(path)
+				amount = types.GetTransferCoin(path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, sdk.DefaultBondDenom, sdk.NewInt(100))
+			}, false, true, nil,
+		},
+		{
+			"source channel not found",
+			func() {
+				// channel references wrong ID
+				suite.coordinator.CreateTransferChannels(path)
+				path.EndpointA.ChannelID = ibctesting.InvalidID
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+			}, true, false, nil,
+		},
+		{
+			"next seq send not found",
+			func() {
+				path.EndpointA.ChannelID = "channel-0"
+				path.EndpointB.ChannelID = "channel-0"
+				// manually create channel so next seq send is never set
+				suite.chainA.App.GetIBCKeeper().ChannelKeeper.SetChannel(
+					suite.chainA.GetContext(),
+					path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID,
+					channeltypes.NewChannel(channeltypes.OPEN, channeltypes.ORDERED, channeltypes.NewCounterparty(path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID), []string{path.EndpointA.ConnectionID}, ibctesting.DefaultChannelVersion),
+				)
+				suite.chainA.CreateChannelCapability(suite.chainA.GetSimApp().ScopedIBCMockKeeper, path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+			}, true, false, nil,
+		},
+		{
+			"transfer failed - sender account is blocked",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+				sender = suite.chainA.GetSimApp().AccountKeeper.GetModuleAddress(types.ModuleName)
+			}, true, false, nil,
+		},
+		// createOutgoingPacket tests
+		// - source chain
+		{
+			"send coin failed",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin("randomdenom", sdk.NewInt(100))
+			}, true, false, nil,
+		},
+		// - receiving chain
+		{
+			"send from module account failed",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = types.GetTransferCoin(path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, " randomdenom", sdk.NewInt(100))
+			}, false, false, nil,
+		},
+		{
+			"channel capability not found",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				cap := suite.chainA.GetChannelCapability(path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID)
+
+				// Release channel capability
+				suite.chainA.GetSimApp().ScopedTransferKeeper.ReleaseCapability(suite.chainA.GetContext(), cap)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+			}, true, false, nil,
+		},
+		{
+			"send coin success,even though send coin is disabled, by passing in custom checkRestrictionHandler(for restricted marker) ",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+
+				// Disable SendEnabled
+				params := suite.chainA.GetSimApp().BankKeeper.GetParams(suite.chainA.GetContext())
+				params.SendEnabled = append(params.SendEnabled, banktypes.NewSendEnabled(sdk.DefaultBondDenom, false))
+				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
+			}, true, true, func(ctx sdk.Context, k keeper.Keeper, sender sdk.AccAddress, token sdk.Coin) (canTransfer bool, err error) {
+				if !k.GetSendEnabled(ctx) {
+					return false, types.ErrSendDisabled
+				}
+				if k.BankKeeper.BlockedAddr(sender) {
+					return false, sdkerrors.ErrUnauthorized.Wrapf("%s is not allowed to send funds", sender)
+				}
+				return true, nil
+			},
+		},
+		{
+			"send coin failed, send coin is disabled, pass in customHandler that checks sendEnabled ",
+			func() {
+				suite.coordinator.CreateTransferChannels(path)
+				amount = sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+
+				// Disable SendEnabled
+				params := suite.chainA.GetSimApp().BankKeeper.GetParams(suite.chainA.GetContext())
+				params.SendEnabled = append(params.SendEnabled, banktypes.NewSendEnabled(sdk.DefaultBondDenom, false))
+				suite.chainA.GetSimApp().BankKeeper.SetParams(suite.chainA.GetContext(), params)
+			}, true, false, func(ctx sdk.Context, k keeper.Keeper, sender sdk.AccAddress, token sdk.Coin) (canTransfer bool, err error) {
+				if err := k.BankKeeper.IsSendEnabledCoins(ctx, sdk.NewCoins(token)...); err != nil {
+					return false, err
+				}
+				return true, nil
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+
+		suite.Run(fmt.Sprintf("Case %s", tc.msg), func() {
+			suite.SetupTest() // reset
+			path = NewTransferPath(suite.chainA, suite.chainB)
+			suite.coordinator.SetupConnections(path)
+			sender = suite.chainA.SenderAccount.GetAddress()
+
+			tc.malleate()
+
+			if !tc.sendFromSource {
+				// send coin from chainB to chainA
+				coinFromBToA := sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+				transferMsg := types.NewMsgTransfer(path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID, coinFromBToA, suite.chainB.SenderAccount.GetAddress().String(), suite.chainA.SenderAccount.GetAddress().String(), clienttypes.NewHeight(0, 110), 0, "")
+				_, err = suite.chainB.SendMsgs(transferMsg)
+				suite.Require().NoError(err) // message committed
+
+				// receive coin on chainA from chainB
+				fungibleTokenPacket := types.NewFungibleTokenPacketData(coinFromBToA.Denom, coinFromBToA.Amount.String(), suite.chainB.SenderAccount.GetAddress().String(), suite.chainA.SenderAccount.GetAddress().String(), "")
+				packet := channeltypes.NewPacket(fungibleTokenPacket.GetBytes(), 1, path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID, path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, clienttypes.NewHeight(0, 110), 0)
+
+				// get proof of packet commitment from chainB
+				err = path.EndpointA.UpdateClient()
+				suite.Require().NoError(err)
+				packetKey := host.PacketCommitmentKey(packet.GetSourcePort(), packet.GetSourceChannel(), packet.GetSequence())
+				proof, proofHeight := path.EndpointB.QueryProof(packetKey)
+
+				recvMsg := channeltypes.NewMsgRecvPacket(packet, proof, proofHeight, suite.chainA.SenderAccount.GetAddress().String())
+				_, err = suite.chainA.SendMsgs(recvMsg)
+				suite.Require().NoError(err) // message committed
+			}
+
+			_, err = suite.chainA.GetSimApp().TransferKeeper.SendTransfer(
+				suite.chainA.GetContext(), path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, amount,
+				sender, suite.chainB.SenderAccount.GetAddress().String(), suite.chainB.GetTimeoutHeight(), 0, "", tc.checkRestrictionsHandler,
+			)
+
+			if tc.expPass {
+				suite.Require().NoError(err)
+			} else {
+				suite.Require().Error(err)
+			}
+		})
+	}
+}
 
 // test sending from chainA to chainB using both coin that orignate on
 // chainA and coin that orignate on chainB

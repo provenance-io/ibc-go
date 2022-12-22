@@ -26,7 +26,7 @@ type Keeper struct {
 	channelKeeper types.ChannelKeeper
 	portKeeper    types.PortKeeper
 	authKeeper    types.AccountKeeper
-	bankKeeper    types.BankKeeper
+	BankKeeper    types.BankKeeper
 	scopedKeeper  exported.ScopedKeeper
 }
 
@@ -54,7 +54,7 @@ func NewKeeper(
 		channelKeeper: channelKeeper,
 		portKeeper:    portKeeper,
 		authKeeper:    authKeeper,
-		bankKeeper:    bankKeeper,
+		BankKeeper:    bankKeeper,
 		scopedKeeper:  scopedKeeper,
 	}
 }
