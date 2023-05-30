@@ -63,7 +63,6 @@ func (k Keeper) SendTransfer(
 	memo string,
 	// check restrictions condition met for this address and coin.
 	checkRestrictionsHandler CheckRestrictionsHandler,
-
 ) (uint64, error) {
 	// if nil then apply default checks
 	if checkRestrictionsHandler != nil {
