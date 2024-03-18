@@ -165,8 +165,7 @@ require (
 )
 
 replace (
-	// github.com/cosmos/cosmos-sdk => github.com/provenance-io/cosmos-sdk v0.46.13-pio-1
-	github.com/cosmos/cosmos-sdk => ../prov-cosmos-sdk
+	github.com/cosmos/cosmos-sdk => github.com/provenance-io/cosmos-sdk v0.46.13-pio-4
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
 	github.com/tendermint/tendermint => github.com/cometbft/cometbft v0.34.29
 )
