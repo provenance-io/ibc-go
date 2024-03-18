@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	dbm "github.com/cometbft/cometbft-db"
 	"github.com/cosmos/cosmos-sdk/store/iavl"
 	"github.com/cosmos/cosmos-sdk/store/rootmulti"
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
@@ -11,7 +12,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	abci "github.com/tendermint/tendermint/abci/types"
 	log "github.com/tendermint/tendermint/libs/log"
-	dbm "github.com/tendermint/tm-db"
 
 	clienttypes "github.com/cosmos/ibc-go/v6/modules/core/02-client/types"
 	"github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"

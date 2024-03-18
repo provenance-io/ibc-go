@@ -3,10 +3,10 @@ package ica_test
 import (
 	"testing"
 
+	dbm "github.com/cometbft/cometbft-db"
 	"github.com/stretchr/testify/suite"
 	"github.com/tendermint/tendermint/libs/log"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
-	dbm "github.com/tendermint/tm-db"
 
 	ica "github.com/cosmos/ibc-go/v6/modules/apps/27-interchain-accounts"
 	controllertypes "github.com/cosmos/ibc-go/v6/modules/apps/27-interchain-accounts/controller/types"
