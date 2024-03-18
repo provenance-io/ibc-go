@@ -74,7 +74,7 @@ func TestFullAppSimulation(t *testing.T) {
 	require.Equal(t, "SimApp", app.Name())
 
 	// run randomized simulation
-	_, simParams, simErr := simulation.SimulateFromSeed(
+	_, _, simParams, simErr := simulation.SimulateFromSeed(
 		t,
 		os.Stdout,
 		app.BaseApp,
@@ -112,7 +112,7 @@ func TestAppImportExport(t *testing.T) {
 	require.Equal(t, "SimApp", app.Name())
 
 	// Run randomized simulation
-	_, simParams, simErr := simulation.SimulateFromSeed(
+	_, _, simParams, simErr := simulation.SimulateFromSeed(
 		t,
 		os.Stdout,
 		app.BaseApp,
@@ -212,7 +212,7 @@ func TestAppSimulationAfterImport(t *testing.T) {
 	require.Equal(t, "SimApp", app.Name())
 
 	// Run randomized simulation
-	stopEarly, simParams, simErr := simulation.SimulateFromSeed(
+	stopEarly, _, simParams, simErr := simulation.SimulateFromSeed(
 		t,
 		os.Stdout,
 		app.BaseApp,
@@ -260,7 +260,7 @@ func TestAppSimulationAfterImport(t *testing.T) {
 		AppStateBytes: exported.AppState,
 	})
 
-	_, _, err = simulation.SimulateFromSeed(
+	_, _, _, err = simulation.SimulateFromSeed(
 		t,
 		os.Stdout,
 		newApp.GetBaseApp(),
@@ -311,7 +311,7 @@ func TestAppStateDeterminism(t *testing.T) {
 				config.Seed, i+1, numSeeds, j+1, numTimesToRunPerSeed,
 			)
 
-			_, _, err := simulation.SimulateFromSeed(
+			_, _, _, err := simulation.SimulateFromSeed(
 				t,
 				os.Stdout,
 				app.BaseApp,
