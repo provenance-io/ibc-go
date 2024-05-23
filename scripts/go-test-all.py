@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-The purpose of this script is to run unit tests for all go modules in the current 
+The purpose of this script is to run unit tests for all go modules in the current
 directory. It works by recursively searching for all go.mod files in the directory and
 subdirectories and then running `go test` on each of them.
 
@@ -18,24 +18,33 @@ def require_env_var(name):
     return value
 
 def find_go_modules(directory):
-    """ Find all go.mod files in the current directory and subdirectories. """
     go_mod_files = []
     for root, _, files in os.walk(directory):
         if 'go.mod' in files:
             go_mod_files.append(root)
     return go_mod_files
 
+def has_test_files(module):
+    """ Check if the module has any test files. """
+    for root, _, files in os.walk(module):
+        if any(file.endswith('_test.go') for file in files):
+            return True
+    return False
+
 def run_tests_for_module(module, *runargs):
     """ Run the unit tests for the given module. """
+    if not has_test_files(module):
+        print(f"No test files found in {module}, skipping...")
+        return 0
+
     os.chdir(module)
-    
+
     print(f"Running unit tests for {module}")
 
     # add runargs to test_command
     test_command = f'go test -mod=readonly {" ".join(runargs)} ./...'
     result = subprocess.run(test_command, shell=True)
     return result.returncode
-
 
 def run_tests(directory, *runargs):
     """ Run the unit tests for all modules in dir. """
