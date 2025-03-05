@@ -282,13 +282,8 @@ func (k Keeper) SetParams(ctx sdk.Context, params types.Params) {
 
 // newModuleQuerySafeAllowList returns a list of all query paths labeled with module_query_safe in the proto files.
 func newModuleQuerySafeAllowList() []string {
-	protoFiles, err := gogoproto.MergedRegistry()
-	if err != nil {
-		panic(err)
-	}
-
 	allowList := []string{}
-	protoFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+	gogoproto.GogoResolver.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
 		for i := 0; i < fd.Services().Len(); i++ {
 			// Get the service descriptor
 			sd := fd.Services().Get(i)

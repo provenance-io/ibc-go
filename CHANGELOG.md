@@ -34,6 +34,61 @@ Ref: https://keepachangelog.com/en/1.0.0/
 
 # Changelog
 
+## [v8.6.1](https://github.com/cosmos/ibc-go/releases/tag/v8.6.1) - 2025-02-27
+
+- [ASA-2025-004](https://github.com/cosmos/ibc-go/security/advisories/GHSA-jg6f-48ff-5xrw) Fix ASA-2025-004
+
+## [v8.5.2](https://github.com/cosmos/ibc-go/releases/tag/v8.5.2) - 2024-11-05
+
+### Testing
+
+* [\#7430](https://github.com/cosmos/ibc-go/pull/7430) Update the block proposer in test chains for each block.
+
+### Bug Fixes
+
+* (core/03-connection) [\#7397](https://github.com/cosmos/ibc-go/pull/7397) Skip the genesis validation connectionID for localhost client.
+
+## [v8.5.1](https://github.com/cosmos/ibc-go/releases/tag/v8.5.1) - 2024-09-13
+
+### Bug Fixes
+
+* (apps/27-interchain-accounts) [\#7277](https://github.com/cosmos/ibc-go/pull/7277) Use `GogoResolver` when populating module query safe allow list to avoid panics from unresolvable protobuf dependencies.
+
+## [v8.5.0](https://github.com/cosmos/ibc-go/releases/tag/v8.5.0) - 2024-08-30
+
+### Dependencies
+
+* [\#6828](https://github.com/cosmos/ibc-go/pull/6828) Bump Cosmos SDK to v0.50.9.
+* [\#7222](https://github.com/cosmos/ibc-go/pull/7221) Update ics23 to v0.11.0.
+
+### State Machine Breaking
+
+* (core/03-connection) [\#7129](https://github.com/cosmos/ibc-go/pull/7129) Remove verification of self client and consensus state from connection handshake. 
+
+## [v8.4.0](https://github.com/cosmos/ibc-go/releases/tag/v8.4.0) - 2024-07-29
+
+### Improvements
+
+* (core/04-channel) [\#6871](https://github.com/cosmos/ibc-go/pull/6871) Add channel ordering to write acknowledgement event.
+
+### Features
+
+* (apps/transfer) [\#6877](https://github.com/cosmos/ibc-go/pull/6877) Added the possibility to transfer the entire user balance of a particular denomination by using [`UnboundedSpendLimit`](https://github.com/cosmos/ibc-go/blob/cdaaa94546af79760317f22bc93f270e3d754c84/modules/apps/transfer/types/coin.go#L60-L62) as the token amount.
+
+### Bug Fixes
+
+* (core/04-channel) [\#6935](https://github.com/cosmos/ibc-go/pull/6935) Check upgrade compatibility in `ChanUpgradeConfirm`.
+
+## [v8.3.2](https://github.com/cosmos/ibc-go/releases/tag/v8.3.2) - 2024-06-20
+
+### Dependencies
+
+* [\#6614](https://github.com/cosmos/ibc-go/pull/6614) Bump Cosmos SDK to v0.50.7.
+
+### Improvements
+
+* (apps/27-interchain-accounts) [\#6436](https://github.com/cosmos/ibc-go/pull/6436) Refactor ICA host keeper instantiation method to avoid panic related to proto files.
+
 ## [v8.3.1](https://github.com/cosmos/ibc-go/releases/tag/v8.3.1) - 2024-05-22
 
 ### Improvements
